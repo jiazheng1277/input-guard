@@ -68,3 +68,7 @@ powershell -ExecutionPolicy Bypass -File install.ps1
   能读你用户目录的人可以离线暴力破解短密码。
 - 上锁期间电脑不会睡眠。
 - 以管理员权限运行（计划任务「最高权限」），这样前台是管理员窗口（如任务管理器）时也拦得住。
+
+## 许可证
+
+[MIT](LICENSE)

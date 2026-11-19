@@ -1,0 +1,5 @@
+__pycache__/
+*.pyc
+*.log
+input_guard_*.txt
+.input_guard.json

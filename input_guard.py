@@ -75,6 +75,10 @@ kernel32.GetModuleHandleW.argtypes = [wintypes.LPCWSTR]
 kernel32.GetModuleHandleW.restype = wintypes.HMODULE
 kernel32.SetThreadExecutionState.argtypes = [wintypes.DWORD]
 kernel32.SetThreadExecutionState.restype = wintypes.DWORD
+kernel32.CreateMutexW.argtypes = [ctypes.c_void_p, wintypes.BOOL, wintypes.LPCWSTR]
+kernel32.CreateMutexW.restype = wintypes.HANDLE
+kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+LOCKED_MUTEX = "Local\\InputGuardLocked"
 
 
 for _s in (sys.stdout, sys.stderr):
@@ -197,6 +201,8 @@ class Guard:
         if not self.install():
             log("失败：钩子挂不上（错误码 %d），没有上锁。" % ctypes.get_last_error())
             return 1
+        # 上锁标记：热键守护靠这个判断「现在是否已锁」，进程退出时系统自动释放
+        locked_mark = kernel32.CreateMutexW(None, False, LOCKED_MUTEX)
         kernel32.SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED)  # 上锁期间不让电脑睡眠
         rehook_id = user32.SetTimer(None, 0, REHOOK_EVERY_MS, None)
         test_id = user32.SetTimer(None, 0, test_seconds * 1000, None) if test_seconds else 0
@@ -218,6 +224,8 @@ class Guard:
         self.unlocked = True
         self.remove()
         kernel32.SetThreadExecutionState(ES_CONTINUOUS)
+        if locked_mark:
+            kernel32.CloseHandle(locked_mark)
         if self.blocked:
             log("已解锁（%s）。期间挡掉 %d 次实体按键/点击，第一次 %s，最后一次 %s。"
                 % (reason, self.blocked, self.first_blocked, self.last_blocked))

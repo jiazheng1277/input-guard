@@ -9,10 +9,15 @@ while letting injected input through, until the user blind-types their password.
    `ctrl` / `alt` / `shift` / `win` + one key (`a-z`, `0-9`, `f1`-`f24`, `pause`, `space`, `home`,
    `end`, `insert`, `delete`, `pageup`, `pagedown`), joined with `+`. You can validate with
    `python hotkey_guard.py --check "<hotkey>"` (prints `ok`, exit 0).
+   Also ask whether they want scheduled auto-lock, and at what time (`HH:MM`, e.g. `21:30`) and
+   idle minutes (default 15). From that time each day it locks if not locked, then relocks after
+   that many minutes of no *physical* input, until the user presses the disarm hotkey
+   (default `ctrl+alt+u`). It never auto-unlocks. Validate with `python hotkey_guard.py --check-time "21:30"`.
 2. Run from the repo root (absolute path, the repo must stay where it is; tasks point at it):
    ```powershell
-   powershell -NoProfile -ExecutionPolicy Bypass -File install.ps1 -Hotkey "<hotkey>"
+   powershell -NoProfile -ExecutionPolicy Bypass -File install.ps1 -Hotkey "<hotkey>" [-AutoLockAt 21:30 -IdleMinutes 15]
    ```
+   Warn the user: if the install runs after today's `-AutoLockAt` time, it locks right away.
 3. Tell the user, before running it, that they must:
    - click **Yes** on the UAC prompt, and
    - type the unlock password in the window that pops up (lowercase letters + digits, 6+ chars),
@@ -36,6 +41,7 @@ while letting injected input through, until the user blind-types their password.
 | --- | --- |
 | Change hotkey | `-Hotkey "..."` (re-run install; password kept) |
 | Quit-daemon hotkey | `-QuitHotkey "..."` or `-QuitHotkey none` |
+| Scheduled auto-lock | `-AutoLockAt 21:30 -IdleMinutes 15 [-DisarmHotkey "ctrl+alt+u"]`; omit to turn off |
 | Reset password | `-SetPassword` |
 | No desktop icon | `-NoDesktopIcon` |
 | Uninstall | `-Uninstall` |

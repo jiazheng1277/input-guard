@@ -6,6 +6,7 @@ Windows 上的「实体输入锁」：按一下热键，**坐在电脑前的人�
 - 全局热键立即上锁，默认 `Ctrl+Alt+L`，可自定义
 - 不弹窗口、没有倒计时、不弹 UAC（装一次后）
 - 登录后自动生效
+- 可选定时自动上锁：每天到点没锁就锁，解锁后闲置一段时间再锁，直到有人手动关闭
 - 桌面 `InputGuard.vbs` 双击也能上锁
 - 日志记录每次上锁 / 解锁时间、期间被挡掉多少次实体输入
 
@@ -29,6 +30,9 @@ powershell -ExecutionPolicy Bypass -File install.ps1
 | --- | --- |
 | 换上锁热键 | `install.ps1 -Hotkey "ctrl+shift+f12"` |
 | 换 / 关掉退出守护的热键 | `install.ps1 -QuitHotkey "ctrl+alt+q"` / `-QuitHotkey none` |
+| 定时自动上锁 | `install.ps1 -AutoLockAt 21:30 -IdleMinutes 15` |
+| 换关闭当天模式的热键 | `install.ps1 -AutoLockAt 21:30 -DisarmHotkey "ctrl+alt+u"` |
+| 关掉定时自动上锁 | `install.ps1`（不带 `-AutoLockAt`，默认 `none`） |
 | 重设密码 | `install.ps1 -SetPassword` |
 | 不要桌面图标 | `install.ps1 -NoDesktopIcon` |
 | 卸载 | `install.ps1 -Uninstall` |
@@ -45,6 +49,16 @@ powershell -ExecutionPolicy Bypass -File install.ps1
 - **解锁**：直接盲打密码（没有输入框，大小写不限）
 - **退出热键守护**：`Ctrl+Alt+Q`（下次登录自动重启）
 - **逃生口**：`Ctrl+Alt+Del` 任何程序都拦不了，从那里可以登出或重启
+
+### 定时自动上锁（`-AutoLockAt`）
+
+1. 每天到设定时间（如 21:30）进入「自动上锁模式」，当时没锁就立刻锁上
+2. 模式是单向的，**不会自己结束**：输密码解锁后可以正常用，实体键鼠闲置 `-IdleMinutes` 分钟（默认 15）就再锁
+3. 解锁状态下按 `Ctrl+Alt+U` 关闭模式，当天不再自动锁，第二天到点重新开始
+4. 从不自动解锁；重启 / 重新登录时如果还在模式中，没锁就马上锁
+5. 闲置只算实体键鼠：自动化脚本、远程控制的注入输入不算「有人在用」，所以通宵跑脚本也会照样锁
+
+模式状态存在 `~/.input_guard_state.json`。
 
 ## 文件
 

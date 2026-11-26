@@ -2,6 +2,7 @@
 #
 #   powershell -ExecutionPolicy Bypass -File install.ps1                       # 默认 Ctrl+Alt+L
 #   powershell -ExecutionPolicy Bypass -File install.ps1 -Hotkey "ctrl+shift+f12"
+#   powershell -ExecutionPolicy Bypass -File install.ps1 -AutoLockAt 21:30 -IdleMinutes 15   # 定时自动上锁
 #   powershell -ExecutionPolicy Bypass -File install.ps1 -SetPassword          # 重设密码
 #   powershell -ExecutionPolicy Bypass -File install.ps1 -Uninstall
 #
@@ -17,6 +18,9 @@
 param(
     [string]$Hotkey = 'ctrl+alt+l',
     [string]$QuitHotkey = 'ctrl+alt+q',
+    [string]$AutoLockAt = 'none',          # 每天几点进入自动上锁模式，none = 不启用
+    [double]$IdleMinutes = 15,             # 自动上锁模式中闲置几分钟再锁
+    [string]$DisarmHotkey = 'ctrl+alt+u',  # 关闭当天自动上锁模式
     [switch]$SetPassword,
     [switch]$NoDesktopIcon,
     [switch]$Uninstall
@@ -34,7 +38,9 @@ $isAdmin = (New-Object Security.Principal.WindowsPrincipal([Security.Principal.W
            ).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 if (-not $isAdmin) {
     $a = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$PSCommandPath`"",
-           '-Hotkey', "`"$Hotkey`"", '-QuitHotkey', "`"$QuitHotkey`"")
+           '-Hotkey', "`"$Hotkey`"", '-QuitHotkey', "`"$QuitHotkey`"",
+           '-AutoLockAt', "`"$AutoLockAt`"", '-DisarmHotkey', "`"$DisarmHotkey`"",
+           '-IdleMinutes', $IdleMinutes.ToString([Globalization.CultureInfo]::InvariantCulture))
     if ($SetPassword)   { $a += '-SetPassword' }
     if ($NoDesktopIcon) { $a += '-NoDesktopIcon' }
     if ($Uninstall)     { $a += '-Uninstall' }
@@ -87,11 +93,16 @@ try {
     if (-not (Test-Path $pyw)) { Finish 1 "失败：找不到 $pyw" }
 
     # ---- 检查热键写法 ----
-    foreach ($hk in @($Hotkey, $QuitHotkey)) {
+    $guardPy = Join-Path $here 'hotkey_guard.py'
+    foreach ($hk in @($Hotkey, $QuitHotkey, $DisarmHotkey)) {
         if ($hk -eq 'none') { continue }
-        $out = & $py (Join-Path $here 'hotkey_guard.py') --check $hk
+        $out = & $py $guardPy --check $hk
         if ($LASTEXITCODE -ne 0) { Finish 1 "失败：热键 '$hk' 无效：$out" }
     }
+    $out = & $py $guardPy --check-time $AutoLockAt
+    if ($LASTEXITCODE -ne 0) { Finish 1 "失败：-AutoLockAt '$AutoLockAt' 无效：$out" }
+    if ($IdleMinutes -le 0) { Finish 1 '失败：-IdleMinutes 必须大于 0' }
+    $idleText = $IdleMinutes.ToString([Globalization.CultureInfo]::InvariantCulture)
 
     # ---- 密码：弹窗让用户亲手输入 ----
     $cfg = Join-Path $env:USERPROFILE '.input_guard.json'
@@ -107,7 +118,8 @@ try {
     $set  = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -AllowStartIfOnBatteries `
                 -DontStopIfGoingOnBatteries -MultipleInstances IgnoreNew
 
-    $hotArgs   = "`"$(Join-Path $here 'hotkey_guard.py')`" --hotkey `"$Hotkey`" --quit-hotkey `"$QuitHotkey`""
+    $hotArgs   = "`"$guardPy`" --hotkey `"$Hotkey`" --quit-hotkey `"$QuitHotkey`" " +
+                 "--auto-lock-at `"$AutoLockAt`" --idle-minutes $idleText --disarm-hotkey `"$DisarmHotkey`""
     $hotAction = New-ScheduledTaskAction -Execute $pyw -Argument $hotArgs -WorkingDirectory $here
     $trigger   = New-ScheduledTaskTrigger -AtLogOn -User $user
     Register-ScheduledTask -TaskName 'InputGuard Hotkey' -Action $hotAction -Trigger $trigger `
@@ -137,7 +149,9 @@ try {
         $tail = Get-Content (Join-Path $env:USERPROFILE 'input_guard_log.txt') -Tail 1 -Encoding UTF8 -ErrorAction SilentlyContinue
         Finish 1 "失败：热键守护没有起来。日志最后一行：$tail"
     }
-    Finish 0 "安装完成：$Hotkey 立即上锁，盲打密码解锁；登录后自动生效。"
+    $sched = if ($AutoLockAt -eq 'none') { '' } else {
+        "每天 $AutoLockAt 自动上锁，模式中闲置 $idleText 分钟再锁，$DisarmHotkey 关闭当天模式；" }
+    Finish 0 "安装完成：$Hotkey 立即上锁，盲打密码解锁；${sched}登录后自动生效。"
 } catch {
     Finish 1 "失败：$($_.Exception.Message)"
 }
